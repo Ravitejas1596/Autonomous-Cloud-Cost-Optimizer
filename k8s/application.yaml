@@ -1,0 +1,301 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cost-optimizer-web
+  namespace: cost-optimizer
+  labels:
+    app: cost-optimizer
+    component: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cost-optimizer
+      component: web
+  template:
+    metadata:
+      labels:
+        app: cost-optimizer
+        component: web
+    spec:
+      serviceAccountName: cost-optimizer-sa
+      containers:
+      - name: web
+        image: autonomous-cost-optimizer:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: cost-optimizer-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: cost-optimizer-secrets
+              key: redis-url
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cost-optimizer-secrets
+              key: secret-key
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+        - name: logs-volume
+          mountPath: /app/logs
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: cost-optimizer-data
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: cost-optimizer-logs
+      imagePullSecrets:
+      - name: docker-registry-secret
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cost-optimizer-worker
+  namespace: cost-optimizer
+  labels:
+    app: cost-optimizer
+    component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cost-optimizer
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: cost-optimizer
+        component: worker
+    spec:
+      serviceAccountName: cost-optimizer-sa
+      containers:
+      - name: worker
+        image: autonomous-cost-optimizer:latest
+        command: ["celery", "-A", "src.tasks.celery", "worker", "--loglevel=info", "--concurrency=4"]
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: cost-optimizer-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: cost-optimizer-secrets
+              key: redis-url
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+        - name: logs-volume
+          mountPath: /app/logs
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: cost-optimizer-data
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: cost-optimizer-logs
+      imagePullSecrets:
+      - name: docker-registry-secret
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cost-optimizer-scheduler
+  namespace: cost-optimizer
+  labels:
+    app: cost-optimizer
+    component: scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cost-optimizer
+      component: scheduler
+  template:
+    metadata:
+      labels:
+        app: cost-optimizer
+        component: scheduler
+    spec:
+      serviceAccountName: cost-optimizer-sa
+      containers:
+      - name: scheduler
+        image: autonomous-cost-optimizer:latest
+        command: ["celery", "-A", "src.tasks.celery", "beat", "--loglevel=info"]
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: cost-optimizer-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: cost-optimizer-secrets
+              key: redis-url
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+        - name: logs-volume
+          mountPath: /app/logs
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: cost-optimizer-data
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: cost-optimizer-logs
+      imagePullSecrets:
+      - name: docker-registry-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cost-optimizer-service
+  namespace: cost-optimizer
+  labels:
+    app: cost-optimizer
+spec:
+  selector:
+    app: cost-optimizer
+    component: web
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+  type: ClusterIP
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cost-optimizer-hpa
+  namespace: cost-optimizer
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cost-optimizer-web
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cost-optimizer-ingress
+  namespace: cost-optimizer
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  tls:
+  - hosts:
+    - api.cost-optimizer.com
+    secretName: cost-optimizer-tls
+  rules:
+  - host: api.cost-optimizer.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cost-optimizer-service
+            port:
+              number: 80
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cost-optimizer-data
+  namespace: cost-optimizer
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cost-optimizer-logs
+  namespace: cost-optimizer
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard

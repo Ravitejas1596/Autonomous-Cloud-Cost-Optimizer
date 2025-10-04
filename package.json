@@ -1,0 +1,54 @@
+{
+  "name": "autonomous-cloud-cost-optimizer",
+  "version": "1.0.0",
+  "description": "Enterprise-grade AI-powered cloud cost optimization platform",
+  "main": "src/frontend/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "uvicorn src.main:app --reload --host 0.0.0.0 --port 8000",
+    "dev:frontend": "cd src/frontend && npm run dev",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "cd src/frontend && npm run build",
+    "build:backend": "python -m py_compile src/main.py",
+    "test": "pytest tests/ && cd src/frontend && npm test",
+    "test:backend": "pytest tests/ -v --cov=src",
+    "test:frontend": "cd src/frontend && npm test",
+    "lint": "flake8 src/ && cd src/frontend && npm run lint",
+    "format": "black src/ && isort src/ && cd src/frontend && npm run format",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "migrate": "alembic upgrade head",
+    "migrate:create": "alembic revision --autogenerate -m",
+    "init:db": "python scripts/init_database.py",
+    "seed:data": "python scripts/seed_data.py"
+  },
+  "keywords": [
+    "cloud",
+    "cost-optimization",
+    "ai",
+    "machine-learning",
+    "aws",
+    "azure",
+    "gcp",
+    "automation",
+    "enterprise"
+  ],
+  "author": "Autonomous Cost Optimization Team",
+  "license": "PROPRIETARY",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/autonomous-cloud-cost-optimizer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/autonomous-cloud-cost-optimizer/issues"
+  },
+  "homepage": "https://autonomous-cost-optimizer.com"
+}
