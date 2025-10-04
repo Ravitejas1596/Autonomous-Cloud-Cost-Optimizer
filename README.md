@@ -153,25 +153,5 @@ python scripts/init_database.py
 - [Troubleshooting](docs/troubleshooting.md)
 - [Contributing Guidelines](CONTRIBUTING.md)
 
-## 🏆 Awards & Recognition
-
-- **Winner**: Cloud Innovation Award 2024
-- **Featured**: AWS Partner Solutions
-- **Certified**: Microsoft Azure Partner
-- **Approved**: Google Cloud Marketplace
-
-## 📞 Support
-
-- **Enterprise Support**: support@autonomous-cost-optimizer.com
-- **Documentation**: [docs.autonomous-cost-optimizer.com](https://docs.autonomous-cost-optimizer.com)
-- **Community**: [GitHub Discussions](https://github.com/your-org/autonomous-cloud-cost-optimizer/discussions)
-
-## 📄 License
-
-Enterprise License - See [LICENSE](LICENSE) for details.
-
----
-
-**Built with ❤️ by the Autonomous Cost Optimization Team**
 
 *Transforming cloud economics through intelligent automation.*
